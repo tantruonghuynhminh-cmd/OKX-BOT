@@ -1,5 +1,5 @@
 /* ========================================================
-   server.js - BACKEND SERVER (EXPRESS.JS)
+   server.js - BACKEND SERVER (EXPRESS.JS) - FULL FIX
    ======================================================== */
 const express = require('express');
 const axios = require('axios');
@@ -7,12 +7,12 @@ const crypto = require('crypto');
 const path = require('path');
 const cors = require('cors');
 
-// Cấu hình thông tin API OKX (Nạp trực tiếp làm giá trị fallback)
+// Cấu hình thông tin API OKX (Đồng bộ trực tiếp với botEngine)
 const OKX_API_KEY = process.env.OKX_API_KEY || '7ffea234-8094-4f4c-91f6-1773d2370b5c';
 const OKX_SECRET_KEY = process.env.OKX_SECRET_KEY || '55D97BC2B8E2457EAA62F6152BEE9C03';
 const OKX_PASSPHRASE = process.env.OKX_PASSPHRASE || 'Minhtantruong@1688';
 
-// 1. Import botEngine chuẩn đường dẫn Linux (.js)
+// Import botEngine
 const botEngine = require('./botEngine.js');
 
 const app = express();
@@ -47,7 +47,7 @@ app.get('/health', (req, res) => {
    2. OKX DIRECT & PROXY API ENDPOINTS
    ======================================================== */
 
-// PUBLIC API: Lấy giá thị trường (Không cần Secret/Passphrase)
+// PUBLIC API: Lấy giá thị trường
 app.get('/api/okx/ticker', async (req, res) => {
   try {
     const instId = req.query.instId || 'BTC-USDT';
@@ -109,10 +109,13 @@ app.post('/api/okx/order', async (req, res) => {
   }
 });
 
-// PROXY CHUNG DÀNH CHO FRONTEND GỌI MỌI API OKX KHÔNG BỊ LỖI CORS
+// PROXY CHUNG DÀNH CHO FRONTEND GỌI MỌI API OKX (Đã bao gồm Query Params)
 app.use('/api/okx-proxy/*', async (req, res) => {
   try {
-    const targetPath = req.originalUrl.replace('/api/okx-proxy', '/api/v5');
+    const queryParams = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    const rawPath = req.params[0] || '';
+    const targetPath = `/api/v5/${rawPath}${queryParams}`;
+    
     const method = req.method;
     const timestamp = new Date().toISOString();
     let bodyString = '';
