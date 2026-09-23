@@ -292,42 +292,47 @@ if (!info) return null;
     let leverageFixed = false;
 
     while (currentLeverage >= 10) {
-        const levRes = await okxApiRequest('/account/set-leverage', 'POST', {
-            instId,
-            lever: currentLeverage.toString(),
-            mgnMode: 'cross'
-        });
+    const levRes = await okxApiRequest('/account/set-leverage', 'POST', {
+        instId,
+        lever: currentLeverage.toString(),
+        mgnMode: 'cross'
+    });
 
-        if (levRes?.code === '0' || levRes?.code === '32115') {
+    if (levRes?.code === '0' || levRes?.code === '32115') {
+        const rawQty = (capitalPerTrade * currentLeverage) / (price * ctVal);
+        // Dùng Math.round để tránh sai số floating point của JS
+        const steps = Math.floor(rawQty / lotSz);
+        const qty = parseFloat((steps * lotSz).toFixed(qPrec));
 
-            let rawQty = (capital * currentLeverage) / (price * ctVal);
-
-            let qty = Math.floor(rawQty / lotSz) * lotSz;
-
-            if (qty < minSz) {
-                log(`⚠️ ${instId}: Vốn ${capital} USDT không đủ để mở vị thế tối thiểu.`);
-                return null;
-            }
-
-            qtyStr = qPrec > 0 ? qty.toFixed(qPrec) : String(Math.round(qty));
-            leverageFixed = true;
-            break;
-
-        } else if (levRes?.code === '59102') {
-
-            if (currentLeverage > 50) currentLeverage = 50;
-            else if (currentLeverage > 30) currentLeverage = 30;
-            else if (currentLeverage > 20) currentLeverage = 20;
-            else if (currentLeverage > 10) currentLeverage = 10;
-            else break;
-
-            log(`🔄 ${instId}: Hạ đòn bẩy xuống ${currentLeverage}x`);
-
-        } else {
-            log(`❌ Set leverage lỗi: ${levRes?.code} ${levRes?.msg || ''}`);
+        if (qty < minSz) {
+            log(`⚠️ ${instId}: Vốn ${capitalPerTrade} USDT không đủ mở vị thế tối thiểu (${minSz} lot).`);
             return null;
         }
+
+        qtyStr = qPrec > 0 ? qty.toFixed(qPrec) : String(Math.round(qty));
+        leverageFixed = true;
+        break; // Thành công, thoát vòng lặp
+    } 
+    
+    if (levRes?.code === '59102') {
+        const prevLev = currentLeverage;
+        if (currentLeverage > 50) currentLeverage = 50;
+        else if (currentLeverage > 30) currentLeverage = 30;
+        else if (currentLeverage > 20) currentLeverage = 20;
+        else if (currentLeverage > 10) currentLeverage = 10;
+
+        // Nếu đòn bẩy không thể hạ thấp hơn nữa, dừng lại để tránh lặp vô tận
+        if (currentLeverage >= prevLev) {
+            log(`❌ ${instId}: Đã hạ về đòn bẩy tối thiểu ${currentLeverage}x nhưng vẫn vượt giới hạn sàn.`);
+            break;
+        }
+
+        log(`🔄 ${instId}: Hạ đòn bẩy xuống ${currentLeverage}x do giới hạn OKX`);
+    } else {
+        log(`❌ Set leverage lỗi cho ${instId}: ${levRes?.code} - ${levRes?.msg || ''}`);
+        return null;
     }
+}
 
     if (!leverageFixed) return null;
 
