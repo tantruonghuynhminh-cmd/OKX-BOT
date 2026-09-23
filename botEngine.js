@@ -1,5 +1,5 @@
 /* ========================================================
-   botEngine.js - CHẠY NỀN BACKEND (NODE.JS) - FULL FIX
+   botEngine.js - CHẠY NỀN BACKEND (NODE.JS) - FULL FIX API KEY
    ======================================================== */
 const axios = require('axios');
 const crypto = require('crypto');
@@ -13,7 +13,7 @@ const OKX_TICKERS = 'https://www.okx.com/api/v5/market/tickers?instType=SWAP';
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8799491154:AAFvQ1DnFK_UT8sNkEkw6Cizbg5SpAA7e9o';
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '2002638809';
 
-// Dán trực tiếp thông tin API OKX vào đây:
+// Dán trực tiếp thông tin API OKX vào đây (Dùng chung cho toàn bộ file)
 const apiKey = process.env.OKX_API_KEY || '7ffea234-8094-4f4c-91f6-1773d2370b5c';
 const secretKey = process.env.OKX_SECRET_KEY || '55D97BC2B8E2457EAA62F6152BEE9C03';
 const passphrase = process.env.OKX_PASSPHRASE || 'Minhtantruong@1688';
@@ -23,7 +23,7 @@ let isScanning = false;
 const CONCURRENCY_LIMIT = 5;
 const TOP_N = 5;
 
-// Cấu hình giao dịch mặc định (Có thể tùy chỉnh hoặc lấy từ Request)
+// Cấu hình giao dịch mặc định
 let capitalPerTrade = 10; // Vốn mỗi lệnh (USDT)
 let defaultLeverage = 20;  // Đòn bẩy mặc định
 
@@ -44,7 +44,6 @@ let topDump = [];
 const log = msg => {
     const formattedMsg = `[${new Date().toLocaleTimeString()}] ${msg}`;
     console.log(formattedMsg);
-    // Phát log tới server.js để gửi về giao diện Web nếu có callback
     if (global.broadcastLog && typeof global.broadcastLog === 'function') {
         global.broadcastLog(formattedMsg);
     }
@@ -77,10 +76,6 @@ async function okxPublic(endpoint) {
 }
 
 async function okxApiRequest(endpoint, method = 'GET', body = null) {
-    const apiKey = process.env.OKX_API_KEY || '7ffea234-8094-4f4c-91f6-1773d2370b5c';
-    const secretKey = process.env.OKX_SECRET_KEY || '55D97BC2B8E2457EAA62F6152BEE9C03';
-    const passphrase = process.env.OKX_PASSPHRASE || 'Minhtantruong@1688';
-
     if (!apiKey || !secretKey || !passphrase) {
         log("❌ Chưa cấu hình API Keys cho trading");
         return null;
@@ -257,9 +252,9 @@ function calcTP_SL(last, atr, isLong) {
 /* ================== ORDER EXECUTION (PLACE ORDER) ================== */
 async function placeOrder(instId, side, price, slPrice, tpPrice) {
     try {
-        const res = await fetch(`https://www.okx.com/api/v5/public/instruments?instType=SWAP&instId=${instId}`);
-        const instRes = await res.json();
-        const info = instRes?.data?.[0];
+        // Dùng axios thay vì fetch để tránh lỗi Node.js
+        const res = await axios.get(`${OKX_API_BASE}/public/instruments?instType=SWAP&instId=${instId}`);
+        const info = res.data?.data?.[0];
         if (!info) {
             log(`❌ Không lấy được thông tin instrument cho ${instId}`);
             return null;
@@ -361,6 +356,7 @@ async function placeOrder(instId, side, price, slPrice, tpPrice) {
                 quantity,
                 slPrice,
                 tpPrice,
+                slBuffer: 1.5, // Bổ sung để fix lỗi đọc slBuffer ở Frontend
                 capital: capitalPerTrade,
                 leverage: currentLeverage,
                 margin,
