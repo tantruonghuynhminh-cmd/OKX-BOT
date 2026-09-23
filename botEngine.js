@@ -243,8 +243,9 @@ async function fetchATR_Price1h(instId) {
     }
 }
 
+// Chuẩn theo index.html: TP = ATR * 2 (1 hit TP), SL = ATR * 1.5 (2 cắn SL)
 function calcTP_SL(last, atr, isLong) {
-    const tp = isLong ? last + (atr * 2.5) : last - (atr * 2.5);
+    const tp = isLong ? last + (atr * 2) : last - (atr * 2);
     const sl = isLong ? last - (atr * 1.5) : last + (atr * 1.5);
     return { tp, sl };
 }
@@ -356,7 +357,6 @@ async function placeOrder(instId, side, price, slPrice, tpPrice) {
                 quantity,
                 slPrice,
                 tpPrice,
-                slBuffer: 1.5, // Bổ sung để fix lỗi đọc slBuffer ở Frontend
                 capital: capitalPerTrade,
                 leverage: currentLeverage,
                 margin,
@@ -381,7 +381,7 @@ function sideUpper(s) {
     return String(s).toUpperCase();
 }
 
-/* ================== CORE SCAN & MASTER FLOW ================== */
+/* ================== CORE SCAN ================== */
 async function scanOnce() {
     if (isScanning) return;
     isScanning = true;
@@ -451,44 +451,14 @@ async function scanOnce() {
 
         if (isTrading) {
             const qualityCandidates = [...topPump, ...topDump].filter(c => !activeOrders[c.instId]);
-            await masterFlow(qualityCandidates);
+            for (const p of qualityCandidates) {
+                await placeOrder(p.instId, p.side, p.last, p.sl, p.tp);
+            }
         }
     } catch (err) {
         log('Lỗi scan: ' + err.message);
     } finally {
         isScanning = false;
-    }
-}
-
-async function masterFlow(qualityCandidates) {
-    if (!isTrading) return;
-
-    try {
-        const posRes = await okxApiRequest('/account/positions?instType=SWAP');
-        if (!posRes || posRes.code !== '0') return;
-
-        const openPositions = (posRes.data || []).filter(p => Math.abs(+p.pos) > 0);
-        const openIds = new Set(openPositions.map(p => p.instId));
-
-        if (openIds.size >= 10) {
-            log('⚠️ Đã đạt giới hạn tối đa 10 vị thế song song.');
-            return;
-        }
-
-        const currentHour = new Date().getHours();
-        if (currentHour >= 22 || currentHour < 5) {
-            log(`💤 Khung giờ rủi ro rạng sáng (${currentHour}h). Dừng mở vị thế mới.`);
-            return;
-        }
-
-        for (const p of qualityCandidates) {
-            if (openIds.size >= 10) break;
-            if (openIds.has(p.instId)) continue;
-
-            await placeOrder(p.instId, p.side, p.last, p.sl, p.tp);
-        }
-    } catch (e) {
-        log('Lỗi masterFlow: ' + e.message);
     }
 }
 
