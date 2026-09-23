@@ -157,12 +157,14 @@ app.use('/api/okx-proxy/*', async (req, res) => {
 
 // 1. Kích hoạt Auto Trade
 app.post('/api/autotrade/start', (req, res) => {
-  const currentState = botEngine.getTradingState();
+  const currentState = botEngine.getTradingState ? botEngine.getTradingState() : false;
   if (currentState) {
     return res.json({ ok: true, running: true, message: 'Bot đang chạy ngầm rồi' });
   }
 
-  botEngine.setTradingState(true);
+  if (typeof botEngine.setTradingState === 'function') {
+    botEngine.setTradingState(true);
+  }
   console.log('🚀 AUTO TRADE: KÍCH HOẠT CHẠY NGẦM TRÊN RENDER');
 
   res.json({ ok: true, running: true });
@@ -170,7 +172,9 @@ app.post('/api/autotrade/start', (req, res) => {
 
 // 2. Dừng Auto Trade
 app.post('/api/autotrade/stop', (req, res) => {
-  botEngine.setTradingState(false);
+  if (typeof botEngine.setTradingState === 'function') {
+    botEngine.setTradingState(false);
+  }
   console.log('🛑 AUTO TRADE: ĐÃ NGẮT TOÀN BỘ LUỒNG CHẠY NGẦM');
 
   res.json({ ok: true, running: false });
@@ -179,10 +183,12 @@ app.post('/api/autotrade/stop', (req, res) => {
 // 3. Toggle trạng thái Bật/Tắt Auto Trade
 app.post('/api/bot/toggle', (req, res) => {
   const { enable } = req.body;
-  const currentState = botEngine.getTradingState();
+  const currentState = botEngine.getTradingState ? botEngine.getTradingState() : false;
   const newState = (typeof enable === 'boolean') ? enable : !currentState;
 
-  botEngine.setTradingState(newState);
+  if (typeof botEngine.setTradingState === 'function') {
+    botEngine.setTradingState(newState);
+  }
 
   res.json({
     ok: true,
@@ -195,7 +201,7 @@ app.post('/api/bot/toggle', (req, res) => {
 
 // 4. Lấy trạng thái BOT và đồng bộ với Frontend
 app.get(['/api/autotrade/status', '/api/bot/status'], (req, res) => {
-  const isRunning = botEngine.getTradingState();
+  const isRunning = botEngine.getTradingState ? botEngine.getTradingState() : false;
   res.json({
     ok: true,
     success: true,
@@ -214,7 +220,9 @@ const SCAN_INTERVAL = 15000; // Quét tín hiệu và monitor mỗi 15 giây
 
 setInterval(async () => {
   try {
-    await botEngine.runBotCycle();
+    if (typeof botEngine.runBotCycle === 'function') {
+      await botEngine.runBotCycle();
+    }
   } catch (err) {
     console.error('❌ Lỗi Bot ngầm Render:', err.message);
   }
